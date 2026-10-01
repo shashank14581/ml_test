@@ -1,0 +1,55 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["trainee", "admin"] }
+      },
+      "required": ["uid", "name", "email", "role"]
+    },
+    "Exam": {
+      "title": "Exam",
+      "description": "Machine learning exam details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "traineeName": { "type": "string" },
+        "questions": { "type": "array" },
+        "status": { "type": "string", "enum": ["not-started", "in-progress", "completed"] }
+      },
+      "required": ["id", "title", "traineeName", "questions", "status"]
+    },
+    "ExamResult": {
+      "title": "ExamResult",
+      "description": "Exam performance analytics",
+      "type": "object",
+      "properties": {
+        "examId": { "type": "string" },
+        "traineeUid": { "type": "string" },
+        "score": { "type": "number" },
+        "analytics": { "type": "object" }
+      },
+      "required": ["examId", "traineeUid", "score"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": { "$ref": "User" },
+      "description": "User profiles"
+    },
+    "/exams/{examId}": {
+      "schema": { "$ref": "Exam" },
+      "description": "Exams"
+    },
+    "/results/{resultId}": {
+      "schema": { "$ref": "ExamResult" },
+      "description": "Exam results and analytics"
+    }
+  }
+}

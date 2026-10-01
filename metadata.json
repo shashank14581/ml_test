@@ -1,0 +1,6 @@
+{
+  "name": "Advanced ML Proctored Exam",
+  "description": "A secure proctored machine learning exam platform with real-time monitoring and analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
