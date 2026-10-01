@@ -8,16 +8,29 @@ st.set_page_config(page_title="ML Reasoning Assessment", page_icon="🧠", layou
 DURATION_MIN = 75
 
 QUESTIONS = {
-    "q1": {"answer": "B", "points": 5},
-    "q2": {"answer": "C", "points": 5},
-    "q3": {"answer": 0.48, "tol": 0.01, "points": 5},
-    "q4": {"answer": "B", "points": 5},
-    "q5": {"answer": -2.0, "tol": 0.01, "points": 5},
-    "q6": {"answer": 2.0, "tol": 0.01, "points": 5},
-    "q7": {"answer": "B", "points": 5},
-    "q8": {"answer": "C", "points": 5},
-    "q9": {"answer": "C", "points": 5},
-    "q10": {"answer": "B", "points": 5},
+    "q1": {"answer": "B", "answer_text": "The split may be unstable and overfit a tiny sample", "points": 5},
+    "q2": {"answer": "C", "answer_text": "Increase min_samples_leaf", "points": 5},
+    "q3": {"answer": 0.48, "answer_text": "0.48", "tol": 0.01, "points": 5},
+    "q4": {"answer": "B", "answer_text": "It trades some training fit for a simpler tree", "points": 5},
+    "q5": {"answer": -2.0, "answer_text": "-2.0", "tol": 0.01, "points": 5},
+    "q6": {"answer": 2.0, "answer_text": "2.0", "tol": 0.01, "points": 5},
+    "q7": {"answer": "B", "answer_text": "Makes XGBoost more conservative about creating low-Hessian child nodes", "points": 5},
+    "q8": {"answer": "C", "answer_text": "Each new tree is fitted to improve the current ensemble objective", "points": 5},
+    "q9": {"answer": "C", "answer_text": "Accuracy alone is nearly meaningless here; inspect class-sensitive metrics and the confusion matrix", "points": 5},
+    "q10": {"answer": "B", "answer_text": "Train on earlier periods and validate on a later unseen period", "points": 5},
+}
+
+QUESTION_LABELS = {
+    "q1": "Q1 — Split behaviour",
+    "q2": "Q2 — Regularisation",
+    "q3": "Q3 — Gini calculation",
+    "q4": "Q4 — Pruning",
+    "q5": "Q6 — XGBoost leaf value",
+    "q6": "Q7 — XGBoost split gain",
+    "q7": "Q8 — min_child_weight",
+    "q8": "Q9 — Sequential boosting",
+    "q9": "Q11 — Imbalanced classification",
+    "q10": "Q12 — Validation design",
 }
 
 
@@ -28,21 +41,25 @@ def init_state():
             st.session_state[k] = v
 
 
+def grade_question(key):
+    spec = QUESTIONS[key]
+    value = st.session_state.get(key)
+    if "tol" in spec:
+        try:
+            correct = abs(float(value) - spec["answer"]) <= spec["tol"]
+        except (TypeError, ValueError):
+            correct = False
+    else:
+        correct = isinstance(value, str) and value.startswith(spec["answer"] + " ")
+    return correct, spec["points"] if correct else 0
+
+
 def objective_score():
     score, detail = 0, {}
-    for key, spec in QUESTIONS.items():
-        value = st.session_state.get(key)
-        if "tol" in spec:
-            try:
-                correct = abs(float(value) - spec["answer"]) <= spec["tol"]
-            except (TypeError, ValueError):
-                correct = False
-        else:
-            # Radio values include the full option text; grade by option letter.
-            correct = isinstance(value, str) and value.startswith(spec["answer"] + " ")
-        earned = spec["points"] if correct else 0
+    for key in QUESTIONS:
+        correct, earned = grade_question(key)
         score += earned
-        detail[key] = earned
+        detail[key] = {"correct": correct, "earned": earned}
     return score, detail
 
 
@@ -50,13 +67,18 @@ def text_answer(key, label, height=150):
     return st.text_area(label, key=key, height=height)
 
 
+def display_answer(value):
+    if value is None or value == "":
+        return "No answer"
+    return str(value)
+
+
 def candidate_report():
     score, detail = objective_score()
-    lines = [f"Candidate: {st.session_state.candidate}", f"Objective score: {score}/50", ""]
-    for q in range(1, 11):
-        key = f"q{q}"
-        lines.append(f"{key.upper()}: {st.session_state.get(key, '')} | marks: {detail.get(key, 0)}/5")
-    lines.append("\nWRITTEN RESPONSES\n")
+    lines = [f"Candidate: {st.session_state.candidate}", f"Objective score: {score}/50", "", "OBJECTIVE ANSWER KEY"]
+    for key, spec in QUESTIONS.items():
+        lines.append(f"{QUESTION_LABELS[key]}: candidate={display_answer(st.session_state.get(key))} | correct={spec['answer']} — {spec['answer_text']} | marks={detail[key]['earned']}/{spec['points']}")
+    lines.append("\nWRITTEN RESPONSES — MANUAL REVIEW\n")
     for key in ["r1", "r2", "r3", "r4", "r5"]:
         lines.append(f"{key.upper()}:\n{st.session_state.get(key, '')}\n")
     return "\n".join(lines)
@@ -81,8 +103,6 @@ if not st.session_state.started:
         st.rerun()
     st.stop()
 
-# Browser integrity monitor. A JS listener writes a persistent violation flag as soon
-# as the assessment document becomes hidden. Autorefresh lets Streamlit read it back.
 exam_key = "ml_integrity_" + st.session_state.exam_id
 js = f"""
 (() => {{
@@ -125,8 +145,43 @@ with st.sidebar:
     st.caption("Do not change browser tabs until you submit.")
 
 if st.session_state.submitted:
+    score, detail = objective_score()
     st.success("Assessment submitted successfully.")
-    st.write("Your responses have been locked. Scoring and written-response evaluation are available to the evaluator; no score or answer key is displayed to the candidate.")
+    st.header("Results")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Objective score", f"{score}/50")
+    c2.metric("Objective percentage", f"{score * 2:.0f}%")
+    c3.metric("Written assessment", "Pending /50")
+    st.caption("The objective portion is scored automatically. Written reasoning requires evaluator review before a final score out of 100 can be assigned.")
+
+    st.subheader("Objective answer key")
+    rows = []
+    for key, spec in QUESTIONS.items():
+        result = detail[key]
+        rows.append({
+            "Question": QUESTION_LABELS[key],
+            "Your answer": display_answer(st.session_state.get(key)),
+            "Correct answer": f"{spec['answer']} — {spec['answer_text']}" if "tol" not in spec else spec["answer_text"],
+            "Result": "Correct" if result["correct"] else "Incorrect",
+            "Marks": f"{result['earned']}/{spec['points']}",
+        })
+    st.dataframe(rows, use_container_width=True, hide_index=True)
+
+    st.subheader("Written responses")
+    st.info("These questions are not auto-scored. They remain pending manual evaluation.")
+    written = [
+        ("Q5 — Tree reasoning", "r1"),
+        ("Q10 — Gradient/Hessian reasoning", "r2"),
+        ("Q13 — Leakage diagnosis", "r3"),
+        ("Q14 — Metric choice", "r4"),
+        ("Q15 — Applied ML case", "r5"),
+    ]
+    for label, key in written:
+        with st.expander(label):
+            st.write(st.session_state.get(key, "") or "No response")
+
+    report = st.session_state.get("evaluator_report") or candidate_report()
+    st.download_button("Download results and answer key", report, file_name=f"{st.session_state.candidate.replace(' ', '_')}_ml_assessment_results.txt", mime="text/plain")
     st.stop()
 
 st.header("Section A — Decision Trees")
@@ -190,7 +245,6 @@ st.divider()
 st.warning("Submission is final. Review your answers before submitting.")
 confirm = st.checkbox("I have reviewed my answers and want to submit.")
 if st.button("Submit assessment", type="primary", disabled=not confirm):
-    # Compute before locking so evaluator logic remains available server-side.
     st.session_state["objective_result"] = objective_score()[0]
     st.session_state["evaluator_report"] = candidate_report()
     st.session_state.submitted = True
