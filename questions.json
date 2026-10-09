@@ -1,0 +1,390 @@
+{
+  "version": "2026-10-09-hots-v1",
+  "title": "Applied ML Decision & Implementation Assessment",
+  "candidate": "Geetanjali",
+  "instruction": "20 real-world cases. Choose the best immediate technical decision AND write implementation-level reasoning (pseudocode, SQL, metrics, experiments, assumptions and failure modes). Multiple choice earns up to 40 points; written work earns up to 60 points after human review. This is an open-reasoning assessment, not a memorization quiz.",
+  "objectivePointsPerQuestion": 2,
+  "writtenPointsPerQuestion": 3,
+  "questions": [
+    {
+      "domain": "Problem framing",
+      "title": "Churn or inactivity?",
+      "scenario": "A subscription app asks for a model to identify users likely to stop paying. The business can send only 5,000 retention offers per week. Cancellation becomes visible in billing logs, and campaign sends are recorded separately.",
+      "task": "Define the prediction target, observation window, action horizon and unit of prediction. Write pseudocode or SQL logic for building one label per eligible subscriber at an as-of date, and explain how you would evaluate the top-5,000 list.",
+      "options": [
+        "Train on all historical rows and report ROC-AUC",
+        "Predict cancellation in the next 30 days using only pre-as-of features, evaluate precision@5,000 and incremental retention",
+        "Label users who received an offer as churn risks and maximize recall",
+        "Use the current cancellation status as both a feature and the label"
+      ],
+      "answer": 1,
+      "explanation": "The prediction must be defined at decision time. Precision/recall at fixed outreach capacity helps ranking, while a randomized holdout is needed to measure incremental retention.",
+      "rubric": [
+        "Defines as-of snapshots, future 30-day target and eligibility without leakage",
+        "Provides reproducible label-building steps with subscriber/date keys and temporal joins",
+        "Separates ranking evaluation from incremental treatment effect and offer cost"
+      ]
+    },
+    {
+      "domain": "Validation",
+      "title": "The suspicious 99% score",
+      "scenario": "A retail dataset has six purchases per customer, and rows were randomly divided into train and validation sets. The model gets 99% accuracy. A true deployment must score customers it has never seen.",
+      "task": "Design two validation plans for (a) unseen customers and (b) future repeat purchases. Include group boundaries, temporal cutoffs and a leakage diagnostic in pseudocode.",
+      "options": [
+        "Keep a random row split because every row is independent",
+        "Train on all customer records and validate on a sample of the same rows",
+        "Use customer-grouped splits for unseen people and chronological splits with as-of features for future behavior",
+        "Standardize all features on the full dataset before splitting"
+      ],
+      "answer": 2,
+      "explanation": "Repeated entities violate row independence; deployment horizon determines whether group-held-out or time-held-out evaluation is appropriate. All preprocessing must fit only on training folds.",
+      "rubric": [
+        "Maps validation to specific deployment scenario, grouped and/or chronological",
+        "Presents customer/time split implementation and train-only preprocessing",
+        "Identifies leakage checks such as shared IDs, late features and target proxies"
+      ]
+    },
+    {
+      "domain": "Evaluation",
+      "title": "Fraud at 0.2% prevalence",
+      "scenario": "A payment platform processes 2 million transactions daily. Only 0.2% are fraudulent; investigators can manually review 1,000 alerts. Missing fraud costs money, but false alarms consume review capacity.",
+      "task": "Write evaluation pseudocode that ranks predicted risk, calculates precision@1,000, recall@1,000, and expected net value under assumed investigation and loss costs. Explain why accuracy is misleading.",
+      "options": [
+        "Optimize overall accuracy and predict legitimate for almost every transaction",
+        "Optimize PR-AUC and precision@1,000; choose an operational threshold using expected costs and review capacity",
+        "Evaluate only ROC-AUC because it is threshold independent",
+        "Automatically oversample fraud in the test set to 50%"
+      ],
+      "answer": 1,
+      "explanation": "Rare positives and limited investigation capacity call for PR-aware ranking, capacity metrics and a cost-sensitive decision rule; test prevalence must reflect deployment.",
+      "rubric": [
+        "Defines useful capacity-based and PR metrics with denominators",
+        "Sketches top-k ranking and net-value calculation using explicit assumptions",
+        "Accounts for deployment prevalence, calibration and review feedback bias"
+      ]
+    },
+    {
+      "domain": "Feature engineering",
+      "title": "Demand forecasting before the promotion",
+      "scenario": "A store predicts next-week SKU demand every Sunday night. The table includes next week's realized sales, the final actual promotion spend, planned discount, and trailing sales.",
+      "task": "Build a point-in-time feature table for a Sunday forecast. Specify usable versus forbidden features, treatment of missing future prices and rolling-window code; choose a realistic time-series backtest.",
+      "options": [
+        "Use realized future sales because the values are in the data warehouse",
+        "Use future actual spend because promotion effects are important",
+        "Randomly shuffle every SKU-week and use ordinary K-fold",
+        "Use precommitted promotion plans and lagged sales, then rolling-origin validation"
+      ],
+      "answer": 3,
+      "explanation": "Only features available at the forecast creation time are valid. Known future plans may be useful; realized future operational facts and target data are leakage.",
+      "rubric": [
+        "Distinguishes planned future covariates from realized future fields",
+        "Gives safe lag/rolling aggregation or point-in-time join logic",
+        "Defines rolling-origin split and sensible weighted forecasting error"
+      ]
+    },
+    {
+      "domain": "Model choice",
+      "title": "A strong baseline beats XGBoost",
+      "scenario": "A customer propensity model uses 80 engineered tabular fields and 500,000 labeled rows. Logistic regression is nearly as accurate as XGBoost, but the boosted model triples inference cost and is harder to explain.",
+      "task": "Write a production selection memo outlining a baseline, challenger, calibration, business metric, latency constraint and a go/no-go criterion.",
+      "options": [
+        "Choose XGBoost because it is more advanced",
+        "Choose the model with the best training accuracy",
+        "Run repeated leakage-safe validation and compare expected value, calibration, latency and maintenance cost before selecting",
+        "Always use a neural network for high-volume tabular data"
+      ],
+      "answer": 2,
+      "explanation": "Model complexity is not the objective: operational value, robust validation and serving costs determine the best candidate.",
+      "rubric": [
+        "Specifies baseline/challenger and non-leaky validation with uncertainty",
+        "Sets performance, calibration, latency and cost gates tied to use-case",
+        "Explains a defensible deploy/no-deploy decision and monitoring plan"
+      ]
+    },
+    {
+      "domain": "Target design",
+      "title": "How much will a household spend?",
+      "scenario": "A retailer predicts 30-day spend per household. About 70% of households spend zero; among buyers, spend is heavy-tailed. A single squared-error model collapses many predictions toward small positive amounts.",
+      "task": "Propose and implement (pseudocode acceptable) a two-stage or hurdle model, including targets, loss masking, inference expression and calibration checks.",
+      "options": [
+        "Drop zero-spend households from every stage",
+        "Train a binary purchase model plus a positive-spend model; combine calibrated purchase probability with conditional expected spend",
+        "Turn every spend value into a binary target only",
+        "Replace all zeros with the average positive spend"
+      ],
+      "answer": 1,
+      "explanation": "A hurdle approach models whether any spend occurs and how much is spent conditional on spending. Predictions combine as P(buy) × E[spend|buy]; log-transformed amount estimates need retransformation care.",
+      "rubric": [
+        "Correctly defines both labels, zero mask and conditional magnitude objective",
+        "Provides combined expected-value scoring and log-scale bias considerations",
+        "Plans calibration across probability, conditional amount and aggregate spend"
+      ]
+    },
+    {
+      "domain": "Causal thinking",
+      "title": "Propensity is not uplift",
+      "scenario": "A retailer wants to send discounts to households most likely to purchase. Historically frequent buyers receive offers disproportionately. Leadership asks whether a high purchase-propensity score will maximize incremental profit.",
+      "task": "Design a randomized experiment or uplift strategy. Express incremental profit per household and explain a policy for targeting under a fixed budget.",
+      "options": [
+        "Send to highest purchase probability without experiment",
+        "Treat historical treated-versus-untreated mean difference as causal without adjustment",
+        "Predict incremental treatment effect with a randomized control and target positive expected net uplift",
+        "Maximize clicks on discount messages as a proxy for profit"
+      ],
+      "answer": 2,
+      "explanation": "Those who would buy anyway can waste discounts. The relevant quantity is treatment effect and profit net of discount and contact costs, ideally measured with randomized assignment.",
+      "rubric": [
+        "Explains difference between P(purchase) and treatment effect",
+        "Outlines randomized holdout, unbiased uplift estimation and targeting",
+        "Includes offer costs, uncertainty and heterogeneity in expected profit"
+      ]
+    },
+    {
+      "domain": "Cross validation",
+      "title": "Tuning on the test set",
+      "scenario": "An intern compared 200 XGBoost hyperparameter combinations on the same held-out test set and reported only the best result. The tuned model improves AUC by 0.004 over baseline.",
+      "task": "Redesign model selection and report a credible uncertainty interval. Outline train/validation/test or nested CV, the tuning objective and the final single test evaluation.",
+      "options": [
+        "Report the maximum test AUC: more experiments produce better models",
+        "Use development CV for tuning and a locked untouched test set for final assessment",
+        "Keep tuning until the test score stops improving",
+        "Average the training AUC from all 200 trials"
+      ],
+      "answer": 1,
+      "explanation": "Repeated test use produces selection bias. The test must remain held out until choices and decision criteria are finalized.",
+      "rubric": [
+        "Separates tuning data from final untouched evaluation data",
+        "Presents implementable CV/nested-CV and fit-on-training preprocessing",
+        "Discusses uncertainty, small differences and multiple comparisons"
+      ]
+    },
+    {
+      "domain": "Missingness",
+      "title": "A missing income that matters",
+      "scenario": "A credit application dataset has income missing for 25% of applicants. Missingness varies by acquisition channel, and the missing-income group defaults differently. An XGBoost model will score new channels next quarter.",
+      "task": "Compare native missing-value handling and imputation. Write a train-only missingness analysis, pipeline and an out-of-channel validation check. Discuss fairness and missing-not-at-random risk.",
+      "options": [
+        "Fill missing income using the mean computed on train plus test",
+        "Drop all records without income and ignore selection effects",
+        "Assign zero and assume that means zero income",
+        "Compare native XGBoost missing directions with train-fold imputation/indicators, grouped channel checks and fairness review"
+      ],
+      "answer": 3,
+      "explanation": "Missingness can be informative and non-random. XGBoost learns missing directions, but that does not eliminate data-collection, fairness or channel-shift concerns.",
+      "rubric": [
+        "Implements missingness diagnostics by group with train-only transforms",
+        "Proposes valid alternatives and held-out channel robustness checks",
+        "Recognizes MNAR, disparate impact and deployment schema changes"
+      ]
+    },
+    {
+      "domain": "Imbalanced learning",
+      "title": "The oversampling calibration trap",
+      "scenario": "A conversion classifier was trained on a dataset oversampled to 50% positive although actual conversion is 3%. It ranks users well but reports probabilities around 50% for many users. Marketing uses probabilities to budget bids.",
+      "task": "Explain the problem and specify how to calibrate and evaluate probabilities on untouched production-like data. Include a calibration curve or Brier score calculation.",
+      "options": [
+        "Leave predictions unchanged because ranking AUC is good",
+        "Rebalance validation to 50% positive to match training",
+        "Calibrate using a representative validation sample, assess Brier/reliability and check prior-shift assumptions",
+        "Apply a fixed 0.5 threshold to every business segment"
+      ],
+      "answer": 2,
+      "explanation": "Case-control sampling distorts probability interpretation. Calibrate on representative held-out data, possibly prior-correcting only under justified prior-shift assumptions.",
+      "rubric": [
+        "Distinguishes ranking quality from probability calibration",
+        "Outlines representative holdout, reliability bins/Brier or log-loss",
+        "Handles prevalence shift and downstream expected-value bidding"
+      ]
+    },
+    {
+      "domain": "Data pipelines",
+      "title": "Duplicate IDs in a production join",
+      "scenario": "A customer table should have one row per customer-day, but a product-event join expands 2 million households to 17 million records. Training improves while online predictions duplicate customers.",
+      "task": "Write SQL-like steps to prove which join causes expansion, choose a safe aggregation grain, and validate cardinality and null coverage before train and serve.",
+      "options": [
+        "Use DISTINCT at the end without understanding why duplicates formed",
+        "Add all joined records to increase sample size",
+        "Aggregate each table to the model's customer-day grain before validated joins and assert key uniqueness",
+        "Remove household ID from the result so duplicates cannot be detected"
+      ],
+      "answer": 2,
+      "explanation": "Feature pipelines need defined grain and cardinality assertions. DISTINCT can hide multiplication rather than fix incorrect aggregation semantics.",
+      "rubric": [
+        "States intended primary key and identifies one-to-many join cardinality",
+        "Gives correct GROUP BY/window dedup logic with timing semantics",
+        "Adds uniqueness, row count, null and train/serve parity checks"
+      ]
+    },
+    {
+      "domain": "Metric design",
+      "title": "One metric for a safety-sensitive use case?",
+      "scenario": "A service model prioritizes urgent maintenance inspections. False negatives can cause equipment failure while false positives cost inspections. Failure prevalence shifts seasonally and each crew handles 120 inspections per day.",
+      "task": "Propose threshold selection under cost and capacity constraints. Show a small confusion-matrix calculation and the monitoring metrics needed after deployment.",
+      "options": [
+        "Use 0.5 threshold because sigmoid probabilities are already decisions",
+        "Tune a threshold from validated risk rankings, cost trade-offs and inspection capacity; track missed failures and calibration",
+        "Maximize accuracy over all assets",
+        "Choose the cutoff that yields zero false positives in training"
+      ],
+      "answer": 1,
+      "explanation": "Capacity, failure costs and changing base rates matter. Thresholds must be chosen on held-out data against operational constraints and rechecked after deployment.",
+      "rubric": [
+        "Quantifies FN/FP costs and capacity with an explicit decision rule",
+        "Computes confusion-matrix metrics or top-k outcomes coherently",
+        "Adds prevalence, calibration and operational drift monitoring"
+      ]
+    },
+    {
+      "domain": "Model debugging",
+      "title": "Why did accuracy fall after release?",
+      "scenario": "An XGBoost model scored 0.84 AUC offline and 0.67 AUC online. Feature names match, but production uses local timestamps while training used UTC; one feature is calculated after prediction time.",
+      "task": "Produce a prioritized incident runbook: checks for train-serving skew, target delay, point-in-time correctness, and a safe rollback/retraining decision.",
+      "options": [
+        "Immediately raise tree depth to recover performance",
+        "Conclude concept drift without examining data",
+        "Check schema, timezone and as-of feature parity before attributing the drop to drift; rollback if harmful",
+        "Remove the feature with the highest SHAP value without testing"
+      ],
+      "answer": 2,
+      "explanation": "A train/serve mismatch can mimic model drift. Diagnose reproducible parity and timestamps before retraining or changing architecture.",
+      "rubric": [
+        "Prioritizes reproducible online/offline feature parity checks",
+        "Separates data quality, leakage, concept drift and delayed labels",
+        "Specifies rollback, canary and incident monitoring criteria"
+      ]
+    },
+    {
+      "domain": "Interpretability",
+      "title": "A risky proxy in loan decisions",
+      "scenario": "A credit model uses income, repayment history, ZIP code and device type. SHAP shows ZIP code contributes strongly to predictions. Some protected demographic groups are unevenly distributed across ZIP codes.",
+      "task": "Design an explanation and fairness review that avoids claiming SHAP proves causality. Propose alternative features, slice evaluations and documented decisions.",
+      "options": [
+        "Declare ZIP code causal because SHAP ranks it highly",
+        "Ignore group metrics if global AUC is high",
+        "Audit proxy dependence, group error and calibration, compare compliant feature alternatives and seek domain/legal review",
+        "Delete all demographic-related fields and assume fairness is guaranteed"
+      ],
+      "answer": 2,
+      "explanation": "Feature attribution describes model behavior, not causation. Proxy discrimination and error-rate disparities require contextual fairness and compliance assessment.",
+      "rubric": [
+        "Separates associative attribution from causal claims",
+        "Defines subgroup fairness/calibration/error analysis with adequate sample sizes",
+        "Proposes responsible mitigation and documentation without overclaiming"
+      ]
+    },
+    {
+      "domain": "Computer vision use case",
+      "title": "Packaging defects with costly misses",
+      "scenario": "A factory wants to flag scratched packages from camera images. Photos from each manufacturing batch share lighting and backgrounds; defects occur in 1% of items and mislabeled examples exist.",
+      "task": "Design the dataset split, error analysis, labeling QA, augmentation policy and a human-in-the-loop threshold. Sketch prediction-to-review deployment logic.",
+      "options": [
+        "Randomly split individual images from the same production batch",
+        "Group by batch and time, audit labels, measure defect recall/precision and implement a review threshold",
+        "Augment before splitting so derived copies are in both sets",
+        "Maximize overall accuracy since defects are rare"
+      ],
+      "answer": 1,
+      "explanation": "Batch leakage, scarce positives, labeling errors and high missed-defect costs dominate this problem; separating production batches is essential.",
+      "rubric": [
+        "Defines batch/time-safe splits and duplicate/image leakage checks",
+        "Builds label QA and meaningful defect metrics/error slices",
+        "Specifies threshold, review workflow and monitoring by batch/lighting"
+      ]
+    },
+    {
+      "domain": "Experimentation",
+      "title": "A/B test peeking",
+      "scenario": "A new search-ranker is A/B tested. Product managers check p-values daily and want to stop as soon as p<0.05. Revenue is up, but search latency and customer complaint rates are also rising.",
+      "task": "Design a trustworthy experiment decision rule, including primary metric, guardrails, sample sizing or sequential testing and a launch/rollback decision.",
+      "options": [
+        "Stop at the first nominal p<0.05 after daily checking",
+        "Ignore latency since revenue is the primary goal",
+        "Specify primary and guardrails beforehand; use fixed-horizon or valid sequential inference with a shipping policy",
+        "Only compare users with at least one click after exposure"
+      ],
+      "answer": 2,
+      "explanation": "Repeated uncorrected peeking increases false positives. A defensible launch decision uses predeclared metrics, exposure-aware assignment and guardrails.",
+      "rubric": [
+        "Defines unit of randomization, primary metric, guardrails and power",
+        "Avoids post-treatment filtering and uncorrected repeated peeking",
+        "Offers a conditional ship/rollback decision and uncertainty treatment"
+      ]
+    },
+    {
+      "domain": "Hyperparameters",
+      "title": "Your XGBoost model overfits",
+      "scenario": "XGBoost training AUC is 0.99 and validation AUC is 0.73. Trees have depth 12, 800 estimators, and tiny minimum child weight. The dataset contains noisy interactions.",
+      "task": "Design a controlled experiment modifying depth, min_child_weight, learning_rate, early stopping, row/column subsampling and regularization. Include a fit-evaluate pseudocode loop.",
+      "options": [
+        "Increase depth and estimator count first",
+        "Lower complexity, use early stopping on valid folds and compare regularized, subsampled candidates",
+        "Set all parameters randomly until test improves",
+        "Select model based on training loss alone"
+      ],
+      "answer": 1,
+      "explanation": "The train/validation gap calls for checking leakage first, then constraining capacity and optimizing with validation-only early stopping.",
+      "rubric": [
+        "Checks leakage/validation before assuming overfitting mechanism",
+        "Provides a small reproducible search with early stopping on non-test data",
+        "Evaluates gap, stability and business-relevant performance"
+      ]
+    },
+    {
+      "domain": "Cold start",
+      "title": "A new product has no history",
+      "scenario": "A demand model uses past sales, recent clicks and category. New SKUs have no past sales or interactions, and their error is twice that of established products.",
+      "task": "Propose a cold-start fallback hierarchy and a backtest that simulates unseen products. Include pseudocode for selecting feature sources and switching to a learned model later.",
+      "options": [
+        "Use zero demand for every new SKU",
+        "Use a random split of historical established SKU records",
+        "Use category/attribute priors and a fallback until enough observations; evaluate new-SKU cohorts separately",
+        "Drop all unseen products from business reports"
+      ],
+      "answer": 2,
+      "explanation": "Cold start requires attribute- and hierarchy-based estimates plus validation on held-out or launch cohorts; standard random-split metrics mask the problem.",
+      "rubric": [
+        "Defines production-ready fallback using available metadata/hierarchies",
+        "Implements explicit eligibility and threshold/switch logic",
+        "Validates cold-start cohorts, uncertainty and transition to personalized/history model"
+      ]
+    },
+    {
+      "domain": "Drift monitoring",
+      "title": "A model no longer behaves like last month",
+      "scenario": "A lead-scoring model's input distributions changed after a new acquisition channel launched. Some features have high PSI, but conversions are delayed by 30 days and immediate ground truth is unavailable.",
+      "task": "Propose a monitoring dashboard and action policy distinguishing covariate drift, label shift, concept drift and data quality. Explain what can and cannot be concluded before labels mature.",
+      "options": [
+        "Retrain immediately whenever any PSI exceeds a universal threshold",
+        "Declare concept drift from feature PSI alone",
+        "Ignore all drift until next year's retraining cycle",
+        "Monitor input quality/shift and score calibration proxies now; wait for mature labels to validate performance and plan staged action"
+      ],
+      "answer": 3,
+      "explanation": "Population shift is evidence of changed inputs, not proof of lower predictive performance. Delayed outcomes require careful label maturity and cohort tracking.",
+      "rubric": [
+        "Differentiates feature distribution changes from proven concept drift",
+        "Includes schema, nulls, PSI/slices, outcome maturity and delayed performance",
+        "Specifies alert thresholds, investigation and safe retraining/rollback process"
+      ]
+    },
+    {
+      "domain": "Decision optimization",
+      "title": "Rank by probability or profit?",
+      "scenario": "A telecom team can call 2,000 at-risk customers. Customers differ in churn probability, expected margin, rescue probability and call cost. The highest-risk customers are sometimes impossible to save.",
+      "task": "Formulate expected incremental profit per customer and write pseudocode for a budget-constrained selection. Clarify what must be estimated experimentally rather than assumed from churn propensity alone.",
+      "options": [
+        "Sort purely by churn probability",
+        "Sort by historical customer lifetime value only",
+        "Estimate uplift in retained margin minus contact and incentive costs, then optimize selection under call capacity",
+        "Call people who were contacted in previous months because they have more labeled data"
+      ],
+      "answer": 2,
+      "explanation": "The decision is about profitable incremental effect, not event likelihood. Treatment response must be estimated, ideally through randomized outreach experiments.",
+      "rubric": [
+        "Provides a coherent incremental-profit function using effect, margin and costs",
+        "Implements rank/knapsack or constrained selection and guardrails",
+        "Separates risk estimates from causal rescue probability and evaluation"
+      ]
+    }
+  ]
+}
