@@ -1,103 +1,69 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-import { useRef, useEffect, useState } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
-import firebaseConfig from '../firebase-applet-config.json';
+import { useEffect, useState } from 'react';
+import exam from '../questions.json';
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-
-const examQuestions = [
-  { id: 1, q: "In Decision Trees, which impurity measure is more computationally expensive to compute than Entropy?", options: ["Gini Impurity", "Misclassification Error", "Variance Reduction", "Information Gain"], answer: "Gini Impurity" },
-  { id: 2, q: "What is the primary effect of increasing 'min_samples_leaf' in a Decision Tree?", options: ["Increase model complexity", "Reduce overfitting", "Improve bias", "Decrease variance"], answer: "Reduce overfitting" },
-  { id: 3, q: "How does XGBoost handle missing values by default?", options: ["Imputes with mean", "Throws an error", "Learns a default direction for split", "Drops rows"], answer: "Learns a default direction for split" },
-  { id: 4, q: "Which parameter in XGBoost directly controls the complexity of the trees to prevent overfitting?", options: ["max_depth", "learning_rate", "gamma", "subsample"], answer: "gamma" },
-  { id: 5, q: "What is the consequence of a very low 'learning_rate' in XGBoost?", options: ["Faster convergence", "Higher chance of overfitting", "Requires more trees (n_estimators) to converge", "Decreased model accuracy"], answer: "Requires more trees (n_estimators) to converge" },
-  { id: 6, q: "Decision Tree pruning is used to:", options: ["Reduce training time", "Handle categorical features", "Reduce model complexity and prevent overfitting", "Increase tree depth"], answer: "Reduce model complexity and prevent overfitting" },
-  { id: 7, q: "Which boosting algorithm is XGBoost primarily based on?", options: ["AdaBoost", "Gradient Boosting Machines", "Random Forest", "Bagging"], answer: "Gradient Boosting Machines" },
-  { id: 8, q: "In XGBoost, what does the 'colsample_bytree' parameter do?", options: ["Samples rows", "Samples features per tree", "Samples features per split", "Controls tree depth"], answer: "Samples features per tree" },
-  { id: 9, q: "Which of these is NOT a common technique to prevent overfitting in Decision Trees?", options: ["Pruning", "Setting max_depth", "Increasing min_samples_split", "Increasing tree depth"], answer: "Increasing tree depth" },
-  { id: 10, q: "What objective function does XGBoost minimize?", options: ["Squared Error", "Regularized Loss Function", "Hinge Loss", "Cross-Entropy"], answer: "Regularized Loss Function" },
-  { id: 11, q: "What is the purpose of the 'subsample' parameter in XGBoost?", options: ["Feature sub-sampling", "Row sub-sampling (stochastic gradient boosting)", "Learning rate reduction", "Regularization"], answer: "Row sub-sampling (stochastic gradient boosting)" },
-  { id: 12, q: "Why are trees in XGBoost considered weak learners?", options: ["Because they have low predictive power alone", "Because they overfit easily", "Because they are deep", "Because they process data slowly"], answer: "Because they have low predictive power alone" },
-  { id: 13, q: "What type of trees does XGBoost primarily use?", options: ["Regression trees", "Classification trees", "CART (Classification and Regression Trees)", "Random trees"], answer: "CART (Classification and Regression Trees)" },
-  { id: 14, q: "What is the effect of 'reg_alpha' (L1 regularization) in XGBoost?", options: ["Prevents tree splitting", "Adds L1 penalty on leaf weights", "Adds L2 penalty on leaf weights", "Reduces number of trees"], answer: "Adds L1 penalty on leaf weights" },
-  { id: 15, q: "How does XGBoost achieve its performance?", options: ["Parallel computation", "Block structure for data", "Cache-aware access", "All of the above"], answer: "All of the above" },
-  { id: 16, q: "What happens if a Decision Tree is not pruned?", options: ["It generalizes better", "It is likely to overfit the training data", "It runs faster", "It becomes more interpretable"], answer: "It is likely to overfit the training data" },
-  { id: 17, q: "In Gradient Boosting, what do the new trees predict?", options: ["The target values", "The residuals of the previous trees", "The absolute error", "The class labels"], answer: "The residuals of the previous trees" },
-  { id: 18, q: "Which of these is true about XGBoost vs Random Forest?", options: ["XGBoost uses bagging, RF uses boosting", "XGBoost uses boosting, RF uses bagging", "Both use boosting", "Both use bagging"], answer: "XGBoost uses boosting, RF uses bagging" },
-  { id: 19, q: "What is the role of 'tree_method' parameter in XGBoost?", options: ["Determines the algorithm to construct the tree", "Determines the boosting type", "Sets the learning rate", "Controls regularization"], answer: "Determines the algorithm to construct the tree" },
-  { id: 20, q: "What does 'gamma' regularization in XGBoost act as?", options: ["A minimum loss reduction required to make a split", "A maximum loss allowed", "A penalty for leaf depth", "A learning rate scaler"], answer: "A minimum loss reduction required to make a split" }
-];
+type Draft = { choices: Record<number, number>; responses: Record<number, string>; failed: boolean; submittedAt: string | null };
+const KEY = 'ml-thinking-exam-v1';
+const blank: Draft = { choices: {}, responses: {}, failed: false, submittedAt: null };
+const initial = (): Draft => { try { const saved = localStorage.getItem(KEY); return saved ? { ...blank, ...JSON.parse(saved) } : blank; } catch { return blank; } };
+const questions = exam.questions;
+const getScore = (choices: Record<number,number>) => questions.reduce((s,q,i) => s + (choices[i] === q.answer ? 2 : 0), 0);
 
 export default function App() {
-  const traineeName = "Geetanjali";
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [score, setScore] = useState<number | null>(null);
-  const [failed, setFailed] = useState(false);
-
+  const [draft, setDraft] = useState<Draft>(initial);
+  const [index, setIndex] = useState(0);
+  const [confirming, setConfirming] = useState(false);
+  const [started, setStarted] = useState(false);
+  useEffect(() => { localStorage.setItem(KEY, JSON.stringify(draft)); }, [draft]);
   useEffect(() => {
-    async function setupCamera() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      } catch (err) {
-        console.error("Error accessing webcam:", err);
-      }
-    }
-    setupCamera();
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        setFailed(true);
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, []);
-
-  const handleSubmit = () => {
-    let calculatedScore = 0;
-    examQuestions.forEach(q => {
-      if (answers[q.id] === q.answer) calculatedScore++;
-    });
-    setScore(calculatedScore);
+    if (!started || draft.submittedAt || draft.failed) return;
+    const detect = () => { if (document.hidden) setDraft(d => ({...d, failed:true})); };
+    document.addEventListener('visibilitychange',detect);
+    return () => document.removeEventListener('visibilitychange',detect);
+  }, [started,draft.submittedAt,draft.failed]);
+  const q = questions[index];
+  const finished = !!draft.submittedAt;
+  const completed = questions.filter((_,i) => draft.choices[i] !== undefined && !!draft.responses[i]?.trim()).length;
+  const objective = getScore(draft.choices);
+  const downloadable = () => {
+    const payload = { candidate:exam.candidate, version: exam.version, submittedAt:draft.submittedAt, integrityStatus:draft.failed?'FLAGGED':'No tab switch recorded in this browser session', objectiveScore:objective, objectiveTotal:40, writtenScore:'Awaiting manual review (up to 60)', responses:questions.map((x,i)=>({number:i+1, title:x.title, domain:x.domain, selectedOption: draft.choices[i] === undefined ? null : x.options[draft.choices[i]], correctOption:x.options[x.answer], reasoning:draft.responses[i] || '', reviewerRubric:x.rubric})) };
+    const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));
+    const a=document.createElement('a'); a.href=url;a.download='ml_exam_geetanjali_submission.json';a.click();URL.revokeObjectURL(url);
   };
-
-  if (failed) return <div className="text-red-600 text-3xl font-bold p-10">Exam Failed: Tab switching detected.</div>;
-
-  return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold">ML Proctored Exam</h1>
-      <p>Trainee: {traineeName}</p>
-      <div className="mt-4 border-2 border-red-500 p-4">
-        <h2 className="font-bold text-red-600">Secure Webcam Monitoring</h2>
-        <video ref={videoRef} autoPlay playsInline className="w-full h-48 mt-2 bg-black" />
-      </div>
-      <div className="mt-4">
-        <h2 className="text-xl font-semibold mb-2">Test Content: Decision Trees and XGBoost</h2>
-        {examQuestions.map((q) => (
-          <div key={q.id} className="mb-6 p-4 border rounded shadow-sm">
-            <p className="font-semibold mb-2">{q.id}. {q.q}</p>
-            <div className="space-y-1">
-              {q.options.map((option) => (
-                <label key={option} className="flex items-center space-x-2">
-                  <input type="radio" name={`question-${q.id}`} value={option} onChange={() => setAnswers({...answers, [q.id]: option})} />
-                  <span>{option}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        ))}
-        <button onClick={handleSubmit} className="px-6 py-2 bg-green-600 text-white rounded font-bold">Submit Exam</button>
-        {score !== null && <p className="mt-4 text-2xl">Final Score: {score} / {examQuestions.length}</p>}
-      </div>
+  const updateChoice=(n:number)=>setDraft(d=>({...d,choices:{...d.choices,[index]:n}}));
+  const updateResponse=(v:string)=>setDraft(d=>({...d,responses:{...d.responses,[index]:v}}));
+  return <main className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8">
+    <div className="mx-auto max-w-6xl">
+      <header className="mb-6 rounded-2xl bg-slate-900 border border-slate-800 p-6">
+        <div className="text-xs tracking-widest uppercase text-cyan-400 font-bold">Trainee evaluation • Applied ML</div>
+        <h1 className="text-3xl md:text-4xl font-bold mt-2">{exam.title}</h1>
+        <p className="text-slate-400 mt-3">Candidate: <strong className="text-white">{exam.candidate}</strong> · 20 applied ML scenarios · 100 points total</p>
+        <p className="text-slate-400 mt-2">Make a decision, then demonstrate how you would implement it. Give explicit features, labels, splits, pseudocode/SQL, metrics, assumptions and failure modes where relevant.</p>
+        <div className="mt-4 grid sm:grid-cols-3 gap-2 text-sm"><div className="rounded-lg bg-slate-800 p-3">40 pts · 20 decisions, automatically graded</div><div className="rounded-lg bg-slate-800 p-3">60 pts · reasoning and implementation, manually reviewed</div><div className="rounded-lg bg-slate-800 p-3">Progress: {completed}/20 fully completed</div></div>
+      </header>
+      {draft.failed && !finished && <div role="alert" className="rounded-xl border border-red-500 bg-red-950 p-5 mb-5"><h2 className="text-xl font-bold">Assessment flagged: tab/window switch detected</h2><p className="mt-1">This browser-based check is a deterrent, not secure proctoring. Your draft is kept locally. Submit/export only for administrative review.</p></div>}
+      {!started && !finished ? <section className="rounded-xl bg-slate-900 border border-slate-700 p-6">
+        <h2 className="text-xl font-semibold">Assessment instructions</h2>
+        <p className="mt-2 text-slate-300">Each question has a scenario, a decision worth 2 points and written reasoning worth 3 points. Reasoning is evaluated by a human using a three-part rubric. Do not just name an algorithm: define deployment decisions, measurable success and implementation steps.</p>
+        <p className="mt-3 text-amber-300">Once started, switching tabs or minimizing this page flags the attempt. This does not provide secure identity or exam enforcement. Answers are saved only to this browser until you export them.</p>
+        <button className="bg-cyan-400 text-slate-950 font-bold rounded-lg px-6 py-3 mt-5" onClick={()=>setStarted(true)}>Start / resume assessment</button>
+      </section> : !finished ? <>
+        <div className="flex gap-2 flex-wrap mb-4">{questions.map((_,i)=><button key={i} aria-label={`Go to question ${i+1}`} onClick={()=>setIndex(i)} className={`rounded-md w-10 h-10 border ${i===index?'bg-cyan-400 text-slate-950 border-cyan-400':draft.choices[i]!==undefined&&draft.responses[i]?.trim()?'bg-emerald-950 border-emerald-700':'bg-slate-900 border-slate-700'}`}>{i+1}</button>)}</div>
+        <article className="rounded-2xl bg-slate-900 border border-slate-800 p-5 md:p-8">
+          <div className="text-sm font-semibold text-cyan-400 uppercase tracking-wider">Case {index+1} / 20 • {q.domain}</div>
+          <h2 className="mt-2 text-2xl font-bold">{q.title}</h2>
+          <p className="mt-4 leading-relaxed text-slate-200">{q.scenario}</p>
+          <div className="my-5 rounded-xl border-l-4 border-cyan-400 bg-slate-800 p-4"><strong>Your implementation challenge</strong><p className="mt-1">{q.task}</p></div>
+          <fieldset className="space-y-3"><legend className="font-semibold mb-3">Part A — Select the best immediate decision (2 pts)</legend>{q.options.map((o,j)=><label key={j} className={`flex gap-3 cursor-pointer rounded-lg border p-3 ${draft.choices[index]===j?'border-cyan-400 bg-slate-800':'border-slate-700'}`}><input type="radio" className="accent-cyan-400" name={'q'+index} checked={draft.choices[index]===j} onChange={()=>updateChoice(j)}/><span>{String.fromCharCode(65+j)}. {o}</span></label>)}</fieldset>
+          <label htmlFor="reasoning" className="block mt-7 font-semibold">Part B — Explain your design and implementation (3 pts)</label>
+          <p className="text-sm text-slate-400 mt-1 mb-2">Show your logic, not just buzzwords. Pseudocode, metrics, validation and potential failures are encouraged.</p>
+          <textarea id="reasoning" rows={10} value={draft.responses[index]||''} onChange={e=>updateResponse(e.target.value)} placeholder="I would define the target as...&#10;Pseudocode / SQL...&#10;My evaluation would be...&#10;Failure modes and safeguards..." className="w-full rounded-lg bg-slate-950 border border-slate-600 p-4 focus:outline-none focus:border-cyan-400"/>
+          <div className="mt-5 flex flex-wrap justify-between gap-3"><button className="border border-slate-600 rounded-lg px-5 py-2 disabled:opacity-40" disabled={index===0} onClick={()=>setIndex(i=>i-1)}>Previous</button>{index<19?<button className="bg-cyan-400 text-slate-950 font-bold rounded-lg px-6 py-2" onClick={()=>setIndex(i=>i+1)}>Next case →</button>:<button className="bg-emerald-500 text-slate-950 font-bold rounded-lg px-6 py-2" onClick={()=>setConfirming(true)}>Review & submit</button>}</div>
+        </article>
+        {confirming && <section className="mt-5 p-5 rounded-xl bg-slate-900 border border-amber-500"><h2 className="font-bold text-lg">Submit this attempt?</h2><p className="mt-2">{completed}/20 fully completed. Incomplete responses receive zero for unanswered objective items; written responses require manual marking. Submitting reveals the answer guidance and locks this attempt in this browser.</p><div className="flex gap-3 mt-4"><button className="bg-emerald-500 text-slate-950 rounded-lg px-5 py-2 font-bold" onClick={()=>{setDraft(d=>({...d,submittedAt:new Date().toISOString()}));setConfirming(false)}}>Submit and reveal feedback</button><button className="border border-slate-500 rounded-lg px-5 py-2" onClick={()=>setConfirming(false)}>Continue working</button></div></section>}
+      </> : <section className="space-y-5">
+        <div className="bg-slate-900 border border-slate-700 p-6 rounded-xl"><h2 className="text-2xl font-bold">Submitted • Objective score: {objective}/40</h2><p className="mt-2">Written implementation and reasoning: awaiting human marking (maximum 60 points). An objective score is not the final assessment score.</p><p className="mt-2 text-amber-300">{draft.failed ? 'Tab-switch flag recorded: needs supervisor review.' : 'No tab-switch flag saved; this is not verified proctoring.'}</p><button className="bg-cyan-400 text-slate-950 rounded-lg font-bold px-5 py-3 mt-4" onClick={downloadable}>Export submission + review rubric (JSON)</button><p className="text-sm text-slate-400 mt-3">Export the result before clearing browser data. Results are not uploaded or emailed automatically.</p></div>
+        {questions.map((x,i)=><details key={i} className="border border-slate-700 bg-slate-900 rounded-xl p-5"><summary className="cursor-pointer font-semibold">#{i+1} {x.title} · {draft.choices[i]===x.answer?'2/2 objective pts':'0/2 objective pts'} · written pending</summary><p className="mt-3"><strong>Correct decision:</strong> {x.options[x.answer]}</p><p className="mt-2"><strong>Why:</strong> {x.explanation}</p><p className="mt-2"><strong>Submitted reasoning:</strong> {draft.responses[i]?.trim() || '(blank)'}</p><p className="mt-3 font-bold">Human reviewer checklist (1 point each)</p><ol className="list-decimal ml-5 mt-2 space-y-1">{x.rubric.map((r,j)=><li key={j}>{r}</li>)}</ol></details>)}
+      </section>}
     </div>
-  );
+  </main>;
 }
